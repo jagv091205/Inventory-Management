@@ -17,6 +17,12 @@ const SidePanel = ({ activeTab, setActiveTab }) => {
         >
           Waste Management
         </li>
+        <li
+          className={`p-3 mb-2 rounded cursor-pointer ${activeTab === 'inventory' ? 'bg-blue-600' : 'hover:bg-gray-700'}`}
+          onClick={() => setActiveTab('stockcount')}
+        >
+          StockCount
+        </li>
       </ul>
     </div>
   );

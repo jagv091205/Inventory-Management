@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import WasteManagement from './components/WasteManagement';
 import SidePanel from './components/SidePanel';
 import InventoryManagement from './components/InventoryManagement ';
+import StockCount from './components/StockCount';
 
 function App() {
   const [activeTab, setActiveTab] = useState('inventory');
@@ -13,11 +14,10 @@ function App() {
 
       {/* Main content area */}
       <div className="flex-1 p-6 overflow-auto">
-        {activeTab === 'inventory' ? (
-          <InventoryManagement />
-        ) : (
-          <WasteManagement />
-        )}
+      {activeTab === 'inventory' && <InventoryManagement />}
+        {activeTab === 'waste' && <WasteManagement />}
+        {activeTab === 'stockcount' && <StockCount />}
+   
       </div>
     </div>
   );
