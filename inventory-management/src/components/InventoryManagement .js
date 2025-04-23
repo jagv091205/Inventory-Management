@@ -10,21 +10,24 @@ const InventoryManagement = () => {
     const fetchInventoryData = async () => {
       try {
         const snapshot = await getDocs(collection(db, 'inventory'));
-        const items = snapshot.docs.map(docSnap => {
+        const items = await Promise.all(snapshot.docs.map(async docSnap => {
           const data = docSnap.data();
+          const dataSnapshot = await getDocs(collection(db, 'inventory', docSnap.id, 'data'));
+          const latestData = dataSnapshot.docs.sort((a, b) => new Date(b.data().timestamp) - new Date(a.data().timestamp))[0];
+
           return {
             id: docSnap.id,
             itemName: data.itemName || 'Unknown Item',
             unit: data.unit || 'EA',
-            boxes: data.boxes || 0,
-            innerPacks: data.innerPacks || 0,
-            units: data.units || 0,
+            boxes: latestData ? latestData.data().boxes : 0,
+            innerPacks: latestData ? latestData.data().innerPacks : 0,
+            units: latestData ? latestData.data().units : 0,
             innerPerBox: data.innerPerBox || 1,
             unitsPerInner: data.unitsPerInner || 1,
-            totalUnit: data.total_counts || 0, // Keep this for internal calculation
-            pricePerUnit: data.pricePerUnit || 0,
+            totalUnit: latestData ? latestData.data().stockOnHand : 0, // Keep this for internal calculation
+            pricePerUnit: data.price || 0, // Ensure pricePerUnit is fetched correctly
           };
-        });
+        }));
         setInventoryItems(items);
         setLoading(false);
       } catch (error) {
