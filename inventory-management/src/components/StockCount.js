@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, setDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, setDoc, doc, getDoc } from 'firebase/firestore';
 
 const StockCount = () => {
   const [inventoryItems, setInventoryItems] = useState([]);
@@ -8,13 +8,21 @@ const StockCount = () => {
   const [appliedCounts, setAppliedCounts] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [masterCheck, setMasterCheck] = useState(false);
+  const [varianceAttempts, setVarianceAttempts] = useState({});
+  const [submitAnywayEnabled, setSubmitAnywayEnabled] = useState(false);
+  const [varianceMessages, setVarianceMessages] = useState({});
+  const [itemsWithVariance, setItemsWithVariance] = useState([]);
 
   useEffect(() => {
     const fetchItemsData = async () => {
       try {
         const snapshot = await getDocs(collection(db, 'items'));
-        const items = snapshot.docs.map(docSnap => {
+        const items = await Promise.all(snapshot.docs.map(async (docSnap) => {
           const data = docSnap.data();
+          const itemRef = doc(db, 'items', docSnap.id);
+          const itemDoc = await getDoc(itemRef);
+          const totalStockOnHand = itemDoc.data()?.totalStockOnHand || 0;
+
           return {
             id: docSnap.id,
             itemName: data.itemName || 'Unknown Item',
@@ -25,8 +33,9 @@ const StockCount = () => {
             innerPerBox: data.innerPerBox || 1,
             unitsPerInner: data.unitsPerInner || 1,
             pricePerUnit: data.price || 0,
+            totalStockOnHand,
           };
-        });
+        }));
         setInventoryItems(items);
         setLoading(false);
       } catch (error) {
@@ -58,10 +67,56 @@ const StockCount = () => {
   };
 
   const handleTickChange = (id) => {
+    const item = inventoryItems.find(i => i.id === id);
+    const totalUnits = calculateStock(item);
+    const variance = totalUnits - item.totalStockOnHand;
+    const isChecked = !appliedCounts[id];
+
+    // Always toggle the checkbox state first
     setAppliedCounts(prev => ({
       ...prev,
-      [id]: !prev[id]
+      [id]: isChecked
     }));
+
+    if (isChecked && variance !== 0) {
+      // Only show attempts when checkbox is checked AND there's variance
+      const newAttempts = (varianceAttempts[id] || 0) + 1;
+      setVarianceAttempts(prev => ({
+        ...prev,
+        [id]: newAttempts
+      }));
+
+      setVarianceMessages(prev => ({
+        ...prev,
+        [id]: `Variance detected for ${item.itemName}: ${variance}. Please re-check.`
+      }));
+
+      // Track items with variance
+      setItemsWithVariance(prev => {
+        const existing = prev.find(i => i.id === id);
+        if (existing) {
+          return prev.map(i => i.id === id ? { ...i, variance } : i);
+        }
+        return [...prev, { id, itemName: item.itemName, variance }];
+      });
+
+      // Enable submit anyway if attempts >= 3
+      if (newAttempts >= 3) {
+        setSubmitAnywayEnabled(true);
+      }
+    } else if (!isChecked) {
+      // Reset when unchecking
+      setVarianceAttempts(prev => ({
+        ...prev,
+        [id]: 0
+      }));
+      setVarianceMessages(prev => ({
+        ...prev,
+        [id]: ''
+      }));
+      // Remove from items with variance
+      setItemsWithVariance(prev => prev.filter(item => item.id !== id));
+    }
   };
 
   const handleMasterCheck = () => {
@@ -70,39 +125,17 @@ const StockCount = () => {
     const updated = {};
     filteredItems.forEach(item => {
       updated[item.id] = newState;
+      setVarianceAttempts(prev => ({
+        ...prev,
+        [item.id]: 0
+      }));
+      setVarianceMessages(prev => ({
+        ...prev,
+        [item.id]: ''
+      }));
     });
     setAppliedCounts(updated);
-  };
-
-  const handleApplyChanges = async (id) => {
-    const currentDate = new Date();
-    const formattedDate = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}`;
-
-    const item = inventoryItems.find(i => i.id === id);
-    const totalUnits = calculateStock(item);
-
-    try {
-      const dateDocRef = doc(db, 'stockCounts', formattedDate);
-      const itemRef = doc(dateDocRef, 'items', id);
-
-      await setDoc(itemRef, {
-        date: formattedDate,
-        timestamp: currentDate.toISOString(),
-        itemId: id,
-        itemName: item.itemName,
-        boxes: item.boxes,
-        inners: item.innerPacks,
-        units: item.units,
-        totalUnits,
-        manager: "Adam Cole", // Replace with dynamic user data
-        managerId: "USER456",
-        status: "recorded"
-      });
-
-      setAppliedCounts(prev => ({ ...prev, [id]: true }));
-    } catch (error) {
-      console.error("Error adding stock count:", error);
-    }
+    setItemsWithVariance([]);
   };
 
   const handleSaveAllApplied = async () => {
@@ -124,7 +157,7 @@ const StockCount = () => {
           inners: item.innerPacks,
           units: item.units,
           totalUnits,
-          manager: "Adam Cole",
+          manager: "Adam Cole", // Replace with dynamic user data
           managerId: "USER456",
           status: "recorded"
         });
@@ -135,6 +168,98 @@ const StockCount = () => {
       alert("All selected stock counts saved.");
     } catch (error) {
       console.error("Error saving all applied stock counts:", error);
+    }
+  };
+
+  const handleSubmitAnyway = async () => {
+    const currentDate = new Date();
+    const formattedDate = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}`;
+    const dateDocRef = doc(db, 'stockCounts', formattedDate);
+
+    const promises = inventoryItems
+      .filter(item => appliedCounts[item.id])
+      .map(item => {
+        const totalUnits = calculateStock(item);
+        const itemRef = doc(dateDocRef, 'items', item.id);
+        return setDoc(itemRef, {
+          date: formattedDate,
+          timestamp: currentDate.toISOString(),
+          itemId: item.id,
+          itemName: item.itemName,
+          boxes: item.boxes,
+          inners: item.innerPacks,
+          units: item.units,
+          totalUnits,
+          manager: "Adam Cole",
+          managerId: "USER456",
+          status: "recorded",
+          variance: totalUnits - item.totalStockOnHand
+        });
+      });
+
+    try {
+      await Promise.all(promises);
+      alert("All selected stock counts saved with variances.");
+      setSubmitAnywayEnabled(false);
+    } catch (error) {
+      console.error("Error saving all applied stock counts with variances:", error);
+    }
+  };
+
+  const handleLogAndSubmitVariances = async () => {
+    const currentDate = new Date();
+    const timestamp = currentDate.toISOString();
+
+    try {
+      // Log variances to inventoryLog
+      const logPromises = itemsWithVariance.map(item => {
+        const logRef = doc(collection(db, 'inventoryLog'));
+        return setDoc(logRef, {
+          itemId: item.id,
+          itemName: item.itemName,
+          variance: item.variance,
+          timestamp,
+          action: 'forced_submission',
+          manager: "Adam Cole",
+          managerId: "USER456"
+        });
+      });
+
+      // Also save to stockCounts (original functionality)
+      const formattedDate = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}`;
+      const dateDocRef = doc(db, 'stockCounts', formattedDate);
+
+      const savePromises = inventoryItems
+        .filter(item => appliedCounts[item.id])
+        .map(item => {
+          const totalUnits = calculateStock(item);
+          const itemRef = doc(dateDocRef, 'items', item.id);
+          return setDoc(itemRef, {
+            date: formattedDate,
+            timestamp,
+            itemId: item.id,
+            itemName: item.itemName,
+            boxes: item.boxes,
+            inners: item.innerPacks,
+            units: item.units,
+            totalUnits,
+            manager: "Adam Cole",
+            managerId: "USER456",
+            status: "recorded_with_variance",
+            variance: totalUnits - item.totalStockOnHand
+          });
+        });
+
+      await Promise.all([...logPromises, ...savePromises]);
+      alert("Variances logged and counts saved!");
+
+      // Reset states
+      setSubmitAnywayEnabled(false);
+      setItemsWithVariance([]);
+      setVarianceAttempts({});
+      setVarianceMessages({});
+    } catch (error) {
+      console.error("Error submitting variances:", error);
     }
   };
 
@@ -181,6 +306,23 @@ const StockCount = () => {
         >
           Save All Applied
         </button>
+
+        {submitAnywayEnabled && (
+          <>
+            <button
+              onClick={handleSubmitAnyway}
+              className="bg-yellow-600 text-white px-4 py-2 rounded shadow hover:bg-yellow-700"
+            >
+              Submit with Variances
+            </button>
+            <button
+              onClick={handleLogAndSubmitVariances}
+              className="bg-red-600 text-white px-4 py-2 rounded shadow hover:bg-red-700"
+            >
+              Submit & Log Variances
+            </button>
+          </>
+        )}
       </div>
 
       {/* Table */}
@@ -194,13 +336,16 @@ const StockCount = () => {
               <th className="p-3 text-left">Inner</th>
               <th className="p-3 text-left">Unit</th>
               <th className="p-3 text-left">Tick</th>
-              <th className="p-3 text-left">Stock on Hand</th>
+              <th className="p-3 text-left">Variance</th>
             </tr>
           </thead>
           <tbody>
             {filteredItems.map(item => {
               const stockCount = calculateStock(item);
               const isApplied = appliedCounts[item.id];
+              const variance = stockCount - item.totalStockOnHand;
+              const attempts = varianceAttempts[item.id] || 0;
+              const varianceMessage = varianceMessages[item.id];
 
               return (
                 <tr key={item.id} className="border-t hover:bg-gray-50">
@@ -245,7 +390,13 @@ const StockCount = () => {
                     />
                   </td>
                   <td className="p-3">
-                    {isApplied ? stockCount.toLocaleString() : '-'}
+                    {isApplied && variance !== 0 ? (
+                      <span className="text-red-600">
+                        {varianceMessage} (Attempts: {attempts}/3)
+                      </span>
+                    ) : (
+                      '-'
+                    )}
                   </td>
                 </tr>
               );
