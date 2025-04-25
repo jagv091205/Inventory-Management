@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -166,5 +167,7 @@ const InventoryManagement = () => {
     </div>
   );
 };
+
+
 
 export default InventoryManagement;
