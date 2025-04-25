@@ -155,108 +155,167 @@
 
 
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
-import { collection, getDocs, doc } from 'firebase/firestore';
-
-const getTodaysDate = () => {
-  const date = new Date();
-  return date.toISOString().split('T')[0];
-};
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 
 const InventoryManagement = () => {
-  const [stockCounts, setStockCounts] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [expandedLogId, setExpandedLogId] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [itemDetails, setItemDetails] = useState({});
 
   useEffect(() => {
-    const fetchStockCounts = async () => {
-      const date = getTodaysDate();
+    const fetchLogs = async () => {
       try {
-        const allItems = [];
-        const stockCountDocRef = doc(db, 'stockCounts', date);
-        const stockItemsSnapshot = await getDocs(collection(stockCountDocRef, 'items'));
-
-        for (const stockDoc of stockItemsSnapshot.docs) {
-          const stockData = stockDoc.data();
-          const itemId = stockDoc.id;
-
-          const inventoryRef = collection(db, 'inventorys', date, itemId); // fixed typo 'inventorys' to 'inventory'
-          const inventorySnapshot = await getDocs(inventoryRef);
-
-          let totalStockonHand = 0;
-          inventorySnapshot.forEach((invDoc) => {
-            const invData = invDoc.data();
-            totalStockonHand += invData.totalStockonHand || 0;
-          });
-
-          const variance = stockData.totalUnits - totalStockonHand;
-
-          allItems.push({
-            itemId,
-            itemName: stockData.itemName,
-            boxes: stockData.boxes,
-            inners: stockData.inners,
-            units: stockData.units,
-            totalUnits: stockData.totalUnits,
-            inventoryTotalUnits: totalStockonHand,
-            variance,
-          });
-        }
-
-        setStockCounts(allItems);
-      } catch (err) {
-        console.error('Error fetching stock data:', err);
-        setError('Error fetching stock data.');
-      } finally {
+        const logsSnapshot = await getDocs(collection(db, 'inventoryLog'));
+        const logsData = await Promise.all(
+          logsSnapshot.docs.map(async (doc) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              timestamp: data.timestamp,
+              managerName: data.managerName,
+              totalVariance: data.totalVariance,
+              variantItems: []
+            };
+          })
+        );
+        setLogs(logsData);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching variance logs:", error);
         setLoading(false);
       }
     };
 
-    fetchStockCounts();
+    fetchLogs();
   }, []);
 
-  if (loading) return <div className="p-4 text-blue-600">Loading...</div>;
-  if (error) return <div className="p-4 text-red-500">{error}</div>;
+  const handleLogExpand = async (logId) => {
+    if (expandedLogId === logId) {
+      setExpandedLogId(null);
+      return;
+    }
+
+    setExpandedLogId(logId);
+    
+    try {
+      // Fetch variant items for the selected log
+      const variantItemsRef = collection(db, `inventoryLog/${logId}/variantItems`);
+      const itemsSnapshot = await getDocs(variantItemsRef);
+      
+      const itemsData = await Promise.all(
+        itemsSnapshot.docs.map(async (itemDoc) => {
+          const itemData = itemDoc.data();
+          
+          // Fetch inventory item details
+          const inventoryItemSnap = await getDoc(itemData.itemId);
+          const inventoryItem = inventoryItemSnap.data();
+          
+          return {
+            id: itemDoc.id,
+            itemName: inventoryItem?.itemName || 'Unknown Item',
+            itemId: itemData.itemId.id,
+            boxesCount: itemData.boxesCount,
+            innerCount: itemData.innerCount,
+            unitsCount: itemData.unitsCount,
+            totalCounted: itemData.totalCounted,
+            variance: itemData.variance,
+            status: itemData.status
+          };
+        })
+      );
+
+      setLogs(prevLogs => prevLogs.map(log => 
+        log.id === logId ? { ...log, variantItems: itemsData } : log
+      ));
+    } catch (error) {
+      console.error("Error fetching variant items:", error);
+    }
+  };
+
+  if (loading) return <div className="p-4">Loading variance logs...</div>;
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">Today's Stock Counts</h2>
-      <div className="overflow-x-auto shadow rounded-lg border border-gray-200">
-        <table className="min-w-full text-sm text-left text-gray-600">
-          <thead className="bg-gray-100 text-gray-700 uppercase text-xs">
+    <div className="flex-1 p-6 overflow-auto">
+      <h1 className="text-2xl font-bold mb-6">Variance Log History</h1>
+      
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="min-w-full">
+          <thead className="bg-gray-200">
             <tr>
-              <th className="px-4 py-3">Item ID</th>
-              <th className="px-4 py-3">Item Name</th>
-              <th className="px-4 py-3">Boxes</th>
-              <th className="px-4 py-3">Inners</th>
-              <th className="px-4 py-3">Units</th>
-              <th className="px-4 py-3">Manual Total</th>
-              <th className="px-4 py-3">Stock on Hand</th>
-              <th className="px-4 py-3">Variance</th>
+              <th className="p-3 text-left">Timestamp</th>
+              <th className="p-3 text-left">Manager</th>
+              <th className="p-3 text-left">Total Variance</th>
+              <th className="p-3 text-left">Details</th>
             </tr>
           </thead>
           <tbody>
-            {stockCounts.map((item, index) => (
-              <tr
-                key={index}
-                className="border-t border-gray-200 hover:bg-gray-50"
-              >
-                <td className="px-4 py-2">{item.itemId}</td>
-                <td className="px-4 py-2">{item.itemName}</td>
-                <td className="px-4 py-2">{item.boxes}</td>
-                <td className="px-4 py-2">{item.inners}</td>
-                <td className="px-4 py-2">{item.units}</td>
-                <td className="px-4 py-2">{item.totalUnits}</td>
-                <td className="px-4 py-2">{item.inventoryTotalUnits}</td>
-                <td
-                  className={`px-4 py-2 font-semibold ${
-                    item.variance < 0 ? 'text-red-600' : 'text-green-600'
-                  }`}
+            {logs.map(log => (
+              <React.Fragment key={log.id}>
+                <tr 
+                  onClick={() => handleLogExpand(log.id)}
+                  className="cursor-pointer hover:bg-gray-50"
                 >
-                  {item.variance}
-                </td>
-              </tr>
+                  <td className="p-3">
+                    {new Date(log.timestamp).toLocaleString()}
+                  </td>
+                  <td className="p-3">{log.managerName}</td>
+                  <td className="p-3">{log.totalVariance}</td>
+                  <td className="p-3">
+                    {expandedLogId === log.id ? '▼' : '▶'}
+                  </td>
+                </tr>
+                
+                {expandedLogId === log.id && (
+                  <tr className="bg-gray-50">
+                    <td colSpan="4" className="p-4">
+                      <div className="ml-4">
+                        <h3 className="font-semibold mb-2">Variant Items:</h3>
+                        <table className="min-w-full bg-white rounded shadow">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="p-2 text-left">Item Name</th>
+                              <th className="p-2 text-left">Item ID</th>
+                              <th className="p-2 text-left">Boxes</th>
+                              <th className="p-2 text-left">Inner</th>
+                              <th className="p-2 text-left">Units</th>
+                              <th className="p-2 text-left">Total Counted</th>
+                              <th className="p-2 text-left">Variance</th>
+                              <th className="p-2 text-left">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {log.variantItems.map(item => (
+                              <tr key={item.id}>
+                                <td className="p-2">{item.itemName}</td>
+                                <td className="p-2">{item.itemId}</td>
+                                <td className="p-2">{item.boxesCount}</td>
+                                <td className="p-2">{item.innerCount}</td>
+                                <td className="p-2">{item.unitsCount}</td>
+                                <td className="p-2">{item.totalCounted}</td>
+                                <td className={`p-2 ${item.variance !== 0 ? 'text-red-600' : ''}`}>
+                                  {item.variance}
+                                </td>
+                                <td className="p-2">
+                                  <span className={`px-2 py-1 rounded ${
+                                    item.status === 'completed' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {item.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
