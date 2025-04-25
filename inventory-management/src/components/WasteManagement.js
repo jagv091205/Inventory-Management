@@ -108,11 +108,12 @@ const WasteManagement = () => {
 
     const currentDate = new Date();
     const formattedDate = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}`;
+    const formattedTime = `${currentDate.getHours().toString().padStart(2, '0')}-${currentDate.getMinutes().toString().padStart(2, '0')}-${currentDate.getSeconds().toString().padStart(2, '0')}`;
+    const logId = `${formattedDate}_${formattedTime}`;
     
     try {
-      // Create waste log document
-      const wasteLogRef = doc(collection(db, 'wasteLogs'));
-      const logId = wasteLogRef.id;
+      // Create waste log document with custom date-based ID
+      const wasteLogRef = doc(db, 'wasteLogs', logId);
 
       // Calculate total waste
       const totalWaste = itemsToAdjust.reduce((sum, item) => {
@@ -134,8 +135,9 @@ const WasteManagement = () => {
       itemsToAdjust.forEach(item => {
         const totalWaste = calculateWaste(item);
         
-        // Waste item document
-        const wasteItemRef = doc(collection(wasteLogRef, 'wasteItems'), item.id);
+        // Waste item document with combined ID
+        const wasteItemId = `${logId}_${item.id}`;
+        const wasteItemRef = doc(db, `wasteLogs/${logId}/wasteItems`, wasteItemId);
         
         wasteItemPromises.push(setDoc(wasteItemRef, {
           itemId: doc(db, `inventory/${item.id}`),
@@ -245,7 +247,7 @@ const WasteManagement = () => {
         >
           Waste Log
         </button>
-        
+
       </div>
 
       <div className="overflow-x-auto bg-white rounded-lg shadow">
