@@ -14,14 +14,7 @@ const SidePanel = ({ activeTab, setActiveTab }) => {
         >
           Stock Count
         </li>
-        <li
-          className={`p-3 rounded cursor-pointer transition-colors ${
-            activeTab === 'inventory' ? 'bg-blue-600' : 'hover:bg-gray-700'
-          }`}
-          onClick={() => setActiveTab('inventory')}
-        >
-         Stock Report
-        </li>
+       
         <li
           className={`p-3 rounded cursor-pointer transition-colors ${
             activeTab === 'waste' ? 'bg-blue-600' : 'hover:bg-gray-700'

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 
-const InventoryManagement = () => {
+const StockCountLog = () => {
   const [logs, setLogs] = useState([]);
   const [expandedLogId, setExpandedLogId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -170,4 +170,4 @@ const InventoryManagement = () => {
 
 
 
-export default InventoryManagement;
+export default StockCountLog;
