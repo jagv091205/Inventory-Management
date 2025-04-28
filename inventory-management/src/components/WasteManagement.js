@@ -96,30 +96,30 @@ const WasteManagement = () => {
   );
 
   const applyWasteAdjustment = async () => {
-    const itemsToAdjust = wasteItems.filter(item => 
+    const itemsToAdjust = wasteItems.filter(item =>
       readyToAdjust[item.id] && (item.boxes !== '' || item.innerPacks !== '' || item.units !== '')
     );
-
+  
     if (itemsToAdjust.length === 0) {
       setSuccessMessage('No items selected for waste adjustment');
       setShowSuccessModal(true);
       return;
     }
-
+  
     const currentDate = new Date();
     const formattedDate = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}-${currentDate.getDate().toString().padStart(2, '0')}`;
     const formattedTime = `${currentDate.getHours().toString().padStart(2, '0')}-${currentDate.getMinutes().toString().padStart(2, '0')}-${currentDate.getSeconds().toString().padStart(2, '0')}`;
     const logId = `${formattedDate}_${formattedTime}`;
-    
+  
     try {
       // Create waste log document with custom date-based ID
       const wasteLogRef = doc(db, 'wasteLogs', logId);
-
+  
       // Calculate total waste
       const totalWaste = itemsToAdjust.reduce((sum, item) => {
         return sum + calculateWaste(item);
       }, 0);
-
+  
       // Set waste log metadata
       await setDoc(wasteLogRef, {
         id: logId,
@@ -127,40 +127,58 @@ const WasteManagement = () => {
         totalWaste: totalWaste,
         date: formattedDate,
       });
-
+  
       // Prepare write operations
       const wasteItemPromises = [];
       const inventoryUpdatePromises = [];
-
+  
       itemsToAdjust.forEach(item => {
         const totalWaste = calculateWaste(item);
-        
+  
+        // Convert empty strings to 0
+        const boxesValue = item.boxes === '' ? 0 : Number(item.boxes);
+        const innerValue = item.innerPacks === '' ? 0 : Number(item.innerPacks);
+        const unitsValue = item.units === '' ? 0 : Number(item.units);
+  
+        // Debug log to verify data
+        console.log(`Preparing to write waste item for ${item.itemName}:`, {
+          itemId: doc(db, `inventory/${item.id}`),
+          itemName: item.itemName,
+          boxesCount: boxesValue,
+          innerCount: innerValue,
+          unitsCount: unitsValue,
+          totalWaste: totalWaste,
+          reason: selectedReasons[item.id],
+          datePerformed: currentDate.toISOString(),
+          timestamp: currentDate.toISOString(),
+        });
+  
         // Waste item document with combined ID
         const wasteItemId = `${logId}_${item.id}`;
         const wasteItemRef = doc(db, `wasteLogs/${logId}/wasteItems`, wasteItemId);
-        
+  
         wasteItemPromises.push(setDoc(wasteItemRef, {
           itemId: doc(db, `inventory/${item.id}`),
           itemName: item.itemName,
-          boxesCount: item.boxes,
-          innerCount: item.innerPacks,
-          unitsCount: item.units,
+          boxesCount: boxesValue,
+          innerCount: innerValue,
+          unitsCount: unitsValue,
           totalWaste: totalWaste,
           reason: selectedReasons[item.id],
           datePerformed: currentDate.toISOString(),
           timestamp: currentDate.toISOString(),
         }));
-
+  
         // Inventory update
         const inventoryItemRef = doc(db, 'inventory', item.id);
         inventoryUpdatePromises.push(updateDoc(inventoryItemRef, {
           totalStockOnHand: increment(-totalWaste)
         }));
       });
-
+  
       // Execute all writes
       await Promise.all([...wasteItemPromises, ...inventoryUpdatePromises]);
-
+  
       // Reset form for adjusted items
       const updatedItems = wasteItems.map(item => {
         if (readyToAdjust[item.id]) {
@@ -174,7 +192,7 @@ const WasteManagement = () => {
         return item;
       });
       setWasteItems(updatedItems);
-
+  
       // Reset checkboxes
       setReadyToAdjust(prev => {
         const newState = {...prev};
@@ -183,7 +201,7 @@ const WasteManagement = () => {
         });
         return newState;
       });
-
+  
       setSuccessMessage(`Successfully recorded waste for ${itemsToAdjust.length} item(s)`);
       setShowSuccessModal(true);
     } catch (error) {
@@ -192,6 +210,7 @@ const WasteManagement = () => {
       setShowSuccessModal(true);
     }
   };
+  
 
   if (loading) return <div className="p-4">Loading inventory data...</div>;
   if (showWasteLog) {

@@ -41,31 +41,45 @@ const WasteLogHistory = () => {
       setExpandedLogId(null);
       return;
     }
-
+  
     setExpandedLogId(logId);
     
     try {
-      // Fetch waste items for the selected log
       const wasteItemsRef = collection(db, `wasteLogs/${logId}/wasteItems`);
       const itemsSnapshot = await getDocs(wasteItemsRef);
       
       const itemsData = await Promise.all(
         itemsSnapshot.docs.map(async (itemDoc) => {
           const itemData = itemDoc.data();
+          console.log("Item Data:", itemData); // Debug log
           
+          // Extract itemId properly
+          let itemIdPath = '';
+          try {
+            if (itemData.itemId && itemData.itemId.path) {
+              itemIdPath = itemData.itemId.path;
+            } else if (typeof itemData.itemId === 'string') {
+              itemIdPath = itemData.itemId;
+            }
+          } catch (e) {
+            console.warn("Couldn't parse itemId:", e);
+          }
+  
           return {
             id: itemDoc.id,
-            itemName: itemData.itemName,
-            itemId: itemData.itemId.id,
-            boxesCount: itemData.boxesCount,
-            innerCount: itemData.innerCount,
-            unitsCount: itemData.unitsCount,
-            totalWaste: itemData.totalWaste,
-            reason: itemData.reason
+            itemName: itemData.itemName || 'N/A',
+            itemId: itemIdPath,
+            boxesCount: itemData.boxesCount || 0,
+            innerCount: itemData.innerCount || 0,
+            unitsCount: itemData.unitsCount || 0,
+            totalWaste: itemData.totalWaste || 0,
+            reason: itemData.reason || 'N/A'
           };
         })
       );
-
+  
+      console.log("Processed Items:", itemsData); // Debug log
+      
       setLogs(prevLogs => prevLogs.map(log => 
         log.id === logId ? { ...log, wasteItems: itemsData } : log
       ));
