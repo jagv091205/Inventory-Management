@@ -3,7 +3,6 @@ import { db } from '../firebase/config';
 import { collection, getDocs, setDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import WasteLogHistory from './WasteLogHistory';
 
-
 const WasteManagement = () => {
   const [wasteItems, setWasteItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +58,7 @@ const WasteManagement = () => {
   const calculateWaste = (item) =>
     (item.boxes * item.innerPerBox * item.unitsPerInner) +
     (item.innerPacks * item.unitsPerInner) +
-    item.units;
+    (item.units || 0);
 
   const handleInputChange = (id, field, value) => {
     if (value !== '' && (isNaN(value) || Number(value) < 0)) return;
@@ -112,15 +111,10 @@ const WasteManagement = () => {
     const logId = `${formattedDate}_${formattedTime}`;
     
     try {
-      // Create waste log document with custom date-based ID
+      // Create waste log document
       const wasteLogRef = doc(db, 'wasteLogs', logId);
+      const totalWaste = itemsToAdjust.reduce((sum, item) => sum + calculateWaste(item), 0);
 
-      // Calculate total waste
-      const totalWaste = itemsToAdjust.reduce((sum, item) => {
-        return sum + calculateWaste(item);
-      }, 0);
-
-      // Set waste log metadata
       await setDoc(wasteLogRef, {
         id: logId,
         timestamp: currentDate.toISOString(),
@@ -134,34 +128,35 @@ const WasteManagement = () => {
 
       itemsToAdjust.forEach(item => {
         const totalWaste = calculateWaste(item);
-        
-        // Waste item document with combined ID
         const wasteItemId = `${logId}_${item.id}`;
         const wasteItemRef = doc(db, `wasteLogs/${logId}/wasteItems`, wasteItemId);
         
+        // Add waste item record
         wasteItemPromises.push(setDoc(wasteItemRef, {
           itemId: doc(db, `inventory/${item.id}`),
           itemName: item.itemName,
-          boxesCount: item.boxes,
-          innerCount: item.innerPacks,
-          unitsCount: item.units,
+          boxesCount: item.boxes || 0,
+          innerCount: item.innerPacks || 0,
+          unitsCount: item.units || 0,
           totalWaste: totalWaste,
           reason: selectedReasons[item.id],
           datePerformed: currentDate.toISOString(),
           timestamp: currentDate.toISOString(),
         }));
 
-        // Inventory update
-        const inventoryItemRef = doc(db, 'inventory', item.id);
-        inventoryUpdatePromises.push(updateDoc(inventoryItemRef, {
-          totalStockOnHand: increment(-totalWaste)
-        }));
+        // Update inventory stock
+        const inventoryRef = doc(db, 'inventory', item.id);
+        inventoryUpdatePromises.push(
+          updateDoc(inventoryRef, {
+            totalStockOnHand: increment(-totalWaste)
+          })
+        );
       });
 
-      // Execute all writes
+      // Execute all database operations
       await Promise.all([...wasteItemPromises, ...inventoryUpdatePromises]);
 
-      // Reset form for adjusted items
+      // Reset form
       const updatedItems = wasteItems.map(item => {
         if (readyToAdjust[item.id]) {
           return {
@@ -247,7 +242,6 @@ const WasteManagement = () => {
         >
           Waste Log
         </button>
-
       </div>
 
       <div className="overflow-x-auto bg-white rounded-lg shadow">
