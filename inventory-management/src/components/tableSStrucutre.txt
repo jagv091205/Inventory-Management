@@ -7,21 +7,6 @@
       ├── innerPerBox: 10
       ├── unitsPerInner: 5
 
-/stockCounts
-  ├── 2025-04-23
-       ├── items
-           ├── item01
-               ├── itemId: reference (inventory/item01)
-               ├── boxesCount: 2
-               ├── innerCount: 1
-               ├── unitsCount: 5
-               ├── totalCounted: 8
-               ├── variance: 0
-               ├── needsRecount: false
-               ├── datePerformed: "2025-04-23T18:52:18.513Z"
-               ├── status: "completed"
-               ├── timestamp: "2025-04-23T18:52:18.513Z"
-
 
                /inventoryLogs
   └── {logId} (Document)
@@ -42,3 +27,21 @@
                  ├── datePerformed: string
                  ├── status: string
                  └── timestamp: string
+
+
+               /wasteLogs
+  └── {date-time}} (Document)
+       ├── id: string
+       ├── date: string
+       ├── totalwaste: number
+       ├── timestamp: string
+       └── wasteItems (Subcollection)
+            └── date time and item (Document)
+                 ├── itemId: reference (inventory/item01)
+                 ├── boxesCount: number
+                 ├── innerCount: number
+                 ├── unitsCount: number
+                 ├── totalWaste: number
+                 ├── reason: string
+                 └── timestamp: string
+
