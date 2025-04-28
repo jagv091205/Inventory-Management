@@ -113,18 +113,8 @@ const WasteManagement = () => {
     try {
       // Create waste log document
       const wasteLogRef = doc(db, 'wasteLogs', logId);
-<<<<<<< HEAD
       const totalWaste = itemsToAdjust.reduce((sum, item) => sum + calculateWaste(item), 0);
 
-=======
-  
-      // Calculate total waste
-      const totalWaste = itemsToAdjust.reduce((sum, item) => {
-        return sum + calculateWaste(item);
-      }, 0);
-  
-      // Set waste log metadata
->>>>>>> 4061ef505c4cebc466b21ad0d1dc10c8b01b1e49
       await setDoc(wasteLogRef, {
         id: logId,
         timestamp: currentDate.toISOString(),
@@ -138,7 +128,6 @@ const WasteManagement = () => {
   
       itemsToAdjust.forEach(item => {
         const totalWaste = calculateWaste(item);
-<<<<<<< HEAD
         const wasteItemId = `${logId}_${item.id}`;
         const wasteItemRef = doc(db, `wasteLogs/${logId}/wasteItems`, wasteItemId);
         
@@ -149,43 +138,11 @@ const WasteManagement = () => {
           boxesCount: item.boxes || 0,
           innerCount: item.innerPacks || 0,
           unitsCount: item.units || 0,
-=======
-  
-        // Convert empty strings to 0
-        const boxesValue = item.boxes === '' ? 0 : Number(item.boxes);
-        const innerValue = item.innerPacks === '' ? 0 : Number(item.innerPacks);
-        const unitsValue = item.units === '' ? 0 : Number(item.units);
-  
-        // Debug log to verify data
-        console.log(`Preparing to write waste item for ${item.itemName}:`, {
-          itemId: doc(db, `inventory/${item.id}`),
-          itemName: item.itemName,
-          boxesCount: boxesValue,
-          innerCount: innerValue,
-          unitsCount: unitsValue,
-          totalWaste: totalWaste,
-          reason: selectedReasons[item.id],
-          datePerformed: currentDate.toISOString(),
-          timestamp: currentDate.toISOString(),
-        });
-  
-        // Waste item document with combined ID
-        const wasteItemId = `${logId}_${item.id}`;
-        const wasteItemRef = doc(db, `wasteLogs/${logId}/wasteItems`, wasteItemId);
-  
-        wasteItemPromises.push(setDoc(wasteItemRef, {
-          itemId: doc(db, `inventory/${item.id}`),
-          itemName: item.itemName,
-          boxesCount: boxesValue,
-          innerCount: innerValue,
-          unitsCount: unitsValue,
->>>>>>> 4061ef505c4cebc466b21ad0d1dc10c8b01b1e49
           totalWaste: totalWaste,
           reason: selectedReasons[item.id],
           datePerformed: currentDate.toISOString(),
           timestamp: currentDate.toISOString(),
         }));
-<<<<<<< HEAD
 
         // Update inventory stock
         const inventoryRef = doc(db, 'inventory', item.id);
@@ -200,20 +157,6 @@ const WasteManagement = () => {
       await Promise.all([...wasteItemPromises, ...inventoryUpdatePromises]);
 
       // Reset form
-=======
-  
-        // Inventory update
-        const inventoryItemRef = doc(db, 'inventory', item.id);
-        inventoryUpdatePromises.push(updateDoc(inventoryItemRef, {
-          totalStockOnHand: increment(-totalWaste)
-        }));
-      });
-  
-      // Execute all writes
-      await Promise.all([...wasteItemPromises, ...inventoryUpdatePromises]);
-  
-      // Reset form for adjusted items
->>>>>>> 4061ef505c4cebc466b21ad0d1dc10c8b01b1e49
       const updatedItems = wasteItems.map(item => {
         if (readyToAdjust[item.id]) {
           return {
