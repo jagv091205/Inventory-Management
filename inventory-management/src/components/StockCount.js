@@ -214,7 +214,7 @@ const StockCount = () => {
           onClick={() => setShowStockCountLog(false)}
           className="bg-gray-500 text-white px-4 py-2 rounded shadow hover:bg-gray-600 mb-4"
         >
-          Back to Waste Management
+          Back to Stock Count 
         </button>
         <InventoryManagement />
       </div>

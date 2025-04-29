@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import WasteManagement from './components/WasteManagement';
 import SidePanel from './components/SidePanel';
 import StockCount from './components/StockCount';
+import InventoryAndWasteHistory from './components/StockMovement';
 
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
       <div className="flex-1 p-6 overflow-auto">
         {activeTab === 'stockcount' && <StockCount />}
         {activeTab === 'waste' && <WasteManagement />}
+        {activeTab == 'stockMove' && <InventoryAndWasteHistory/>}
       </div>
     </div>
   );

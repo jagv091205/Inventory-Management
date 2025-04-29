@@ -8,6 +8,14 @@ const SidePanel = ({ activeTab, setActiveTab }) => {
       <ul className="space-y-3">
       <li
           className={`p-3 rounded cursor-pointer transition-colors ${
+            activeTab === 'waste' ? 'bg-blue-600' : 'hover:bg-gray-700'
+          }`}
+          onClick={() => setActiveTab('waste')}
+        >
+          Waste Count
+        </li>
+      <li
+          className={`p-3 rounded cursor-pointer transition-colors ${
             activeTab === 'stockcount' ? 'bg-blue-600' : 'hover:bg-gray-700'
           }`}
           onClick={() => setActiveTab('stockcount')}
@@ -16,11 +24,11 @@ const SidePanel = ({ activeTab, setActiveTab }) => {
         </li>
         <li
           className={`p-3 rounded cursor-pointer transition-colors ${
-            activeTab === 'waste' ? 'bg-blue-600' : 'hover:bg-gray-700'
+            activeTab === 'stockMove' ? 'bg-blue-600' : 'hover:bg-gray-700'
           }`}
-          onClick={() => setActiveTab('waste')}
+          onClick={() => setActiveTab('stockMove')}
         >
-          Waste Management
+          Stock Movement
         </li>
         
       </ul>
