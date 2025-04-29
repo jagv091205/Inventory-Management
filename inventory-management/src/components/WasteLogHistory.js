@@ -4,8 +4,11 @@ import { collection, getDocs } from 'firebase/firestore';
 
 const WasteLogHistory = () => {
   const [logs, setLogs] = useState([]);
+  const [filteredLogs, setFilteredLogs] = useState([]);
   const [expandedLogId, setExpandedLogId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     const fetchLogs = async () => {
@@ -22,7 +25,11 @@ const WasteLogHistory = () => {
             };
           })
         );
-        setLogs(logsData);
+        
+        // Sort logs by timestamp (newest first)
+        const sortedLogs = logsData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setLogs(sortedLogs);
+        setFilteredLogs(sortedLogs);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching waste logs:", error);
@@ -51,11 +58,11 @@ const WasteLogHistory = () => {
         let cleanItemId = 'N/A';
         try {
           if (itemData.itemId && itemData.itemId.path) {
-            const fullPath = itemData.itemId.path; // example: 'inventory/item0'
-            cleanItemId = fullPath.split('/')[1] || fullPath; // extract 'item0'
+            const fullPath = itemData.itemId.path;
+            cleanItemId = fullPath.split('/')[1] || fullPath;
           } else if (typeof itemData.itemId === 'string') {
             const fullPath = itemData.itemId;
-            cleanItemId = fullPath.split('/')[1] || fullPath; // extract 'item0'
+            cleanItemId = fullPath.split('/')[1] || fullPath;
           }
         } catch (e) {
           console.warn("Couldn't parse itemId:", e);
@@ -64,7 +71,7 @@ const WasteLogHistory = () => {
         return {
           id: itemDoc.id,
           itemName: itemData.itemName || 'N/A',
-          itemId: cleanItemId, // <-- use clean ID here
+          itemId: cleanItemId,
           boxesCount: itemData.boxesCount || 0,
           innerCount: itemData.innerCount || 0,
           unitsCount: itemData.unitsCount || 0,
@@ -73,7 +80,7 @@ const WasteLogHistory = () => {
         };
       });
 
-      setLogs(prevLogs =>
+      setFilteredLogs(prevLogs =>
         prevLogs.map(log =>
           log.id === logId ? { ...log, wasteItems: itemsData } : log
         )
@@ -81,6 +88,36 @@ const WasteLogHistory = () => {
     } catch (error) {
       console.error("Error fetching waste items:", error);
     }
+  };
+
+  const handleFilter = () => {
+    if (!startDate && !endDate) {
+      setFilteredLogs(logs);
+      return;
+    }
+
+    const filtered = logs.filter(log => {
+      const logDate = new Date(log.timestamp);
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+
+      if (start && end) {
+        return logDate >= start && logDate <= end;
+      } else if (start) {
+        return logDate >= start;
+      } else if (end) {
+        return logDate <= end;
+      }
+      return true;
+    });
+
+    setFilteredLogs(filtered);
+  };
+
+  const clearFilters = () => {
+    setStartDate('');
+    setEndDate('');
+    setFilteredLogs(logs);
   };
 
   if (loading) {
@@ -91,13 +128,49 @@ const WasteLogHistory = () => {
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Waste Log History</h1>
 
+      {/* Filter Section */}
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="p-2 border rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="p-2 border rounded"
+            />
+          </div>
+          <button
+            onClick={handleFilter}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Apply Filter
+          </button>
+          <button
+            onClick={clearFilters}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+          >
+            Clear Filters
+          </button>
+        </div>
+      </div>
+
       <div className="space-y-4">
-        {logs.length === 0 ? (
-          <div className="text-gray-500 text-center p-4">
-            No waste logs found.
+        {filteredLogs.length === 0 ? (
+          <div className="text-gray-500 text-center p-4 bg-white rounded-lg shadow">
+            {logs.length === 0 ? 'No waste logs found.' : 'No logs match the selected filters.'}
           </div>
         ) : (
-          logs.map((log) => (
+          filteredLogs.map((log) => (
             <div key={log.id} className="bg-white rounded-lg shadow">
               <div 
                 className="p-4 flex justify-between items-center cursor-pointer hover:bg-gray-50"
